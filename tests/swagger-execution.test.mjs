@@ -62,6 +62,13 @@ test('OpenAPI sends executable requests through the same-origin proxy', async ()
   assert.match(openapi, /servers:\s*\n\s*- url: \/api\/proxy/);
 });
 
+test('OpenAPI explains how to identify the latest elections', async () => {
+  const openapi = await source('openapi.yaml');
+  assert.match(openapi, /Latest elections \(`les dernières élections`\)/);
+  assert.match(openapi, /omit `cycles`.*most recent `electionDate`/s);
+  assert.match(openapi, /does not itself mean or guarantee the latest election/i);
+});
+
 test('Vercel rewrites nested proxy paths to the serverless function', async () => {
   const config = JSON.parse(await source('vercel.json'));
   assert.deepEqual(config.rewrites, [

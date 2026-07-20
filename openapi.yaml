@@ -219,6 +219,10 @@ paths:
       description: |
         Returns PV summary cards and available electoral-cycle start years. `cycles` may be repeated to request
         one or more cycle start years.
+
+        **Latest elections (`les dernières élections`):** omit `cycles` to retrieve every available PV for the
+        establishment, then select the record or records with the most recent `electionDate`. The `cycles` parameter
+        filters electoral-cycle start years; it does not itself mean or guarantee the latest election.
       parameters:
         - $ref: '#/components/parameters/EstablishmentId'
         - name: cycles
