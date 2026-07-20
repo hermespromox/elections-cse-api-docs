@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Unofficial OpenAPI documentation for the French CSE election procès-verbal public consultation API." />
+  <meta name="theme-color" content="#0b0b0f" />
+  <meta property="og:title" content="CSE Election PV Public API" />
+  <meta property="og:description" content="Detailed, verified OpenAPI documentation for establishment and CSE election PV consultation routes." />
+  <meta property="og:type" content="website" />
+  <title>CSE Election PV Public API — Swagger</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui.css" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead__inner">
+      <a class="brand" href="#top" aria-label="CSE API documentation home">
+        <span class="brand__mark" aria-hidden="true">API</span>
+        <span>
+          <strong>CSE Election PV</strong>
+          <small>Public API reference</small>
+        </span>
+      </a>
+      <nav aria-label="Documentation links">
+        <a href="#swagger-ui">Reference</a>
+        <a href="/openapi.yaml">OpenAPI YAML</a>
+        <a href="https://www.elections-professionnelles.travail.gouv.fr/election-cse/pv/recherche" rel="noreferrer">Official service ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero__eyebrow">Unofficial · reverse-engineered · read-only</div>
+      <h1>French CSE election PV<br /><span>public backend reference</span></h1>
+      <p class="hero__lede">A detailed OpenAPI 3.1 specification for searching establishments and reading structured CSE election procès-verbal data.</p>
+      <div class="hero__actions">
+        <a class="button button--primary" href="#swagger-ui">Browse endpoints</a>
+        <a class="button" href="/openapi.yaml" download>Download specification</a>
+      </div>
+      <dl class="metrics" aria-label="API facts">
+        <div><dt>481,056</dt><dd>consultable PVs reported</dd></div>
+        <div><dt>2021–2028</dt><dd>published period</dd></div>
+        <div><dt>OpenAPI 3.1</dt><dd>machine-readable contract</dd></div>
+        <div><dt>10</dt><dd>reported no-CAPTCHA allowance</dd></div>
+      </dl>
+    </section>
+
+    <section class="notice" aria-labelledby="important-title">
+      <div class="notice__icon" aria-hidden="true">!</div>
+      <div>
+        <h2 id="important-title">Important before using the API</h2>
+        <p>The upstream backend only permits browser CORS calls from the official government website. Interactive “Try it out” execution is disabled here. Public consultation is quota- and CAPTCHA-controlled; respect <code>429</code>, <code>503</code>, and <code>retryAfter</code>. This documentation is not affiliated with or endorsed by the French Ministry of Labour.</p>
+      </div>
+    </section>
+
+    <section class="capabilities" aria-labelledby="capabilities-title">
+      <div class="section-heading">
+        <p>What the public backend exposes</p>
+        <h2 id="capabilities-title">From establishment identity to union-level results</h2>
+      </div>
+      <div class="capability-grid">
+        <article><span>01</span><h3>Establishment search</h3><p>SIREN, SIRET, normalized company name, department filtering, sorting, and pagination.</p></article>
+        <article><span>02</span><h3>Election metadata</h3><p>Cycle, college, round, election month, transmission status, IDCC, and professional categories.</p></article>
+        <article><span>03</span><h3>Ballot statistics</h3><p>Registered voters, turnout, blanks, valid votes, quorum, lists, seats, and electoral quotient.</p></article>
+        <article><span>04</span><h3>Union results</h3><p>Union and confederation labels, list ballots, candidate votes, gender, and elected status—without candidate names.</p></article>
+      </div>
+    </section>
+
+    <section class="reference-intro">
+      <div>
+        <p class="kicker">Endpoint reference</p>
+        <h2>Verified public routes and supporting services</h2>
+      </div>
+      <p>Expand an operation to inspect parameters, constraints, examples, response schemas, and quota errors.</p>
+    </section>
+    <section id="swagger-ui" aria-label="Swagger API reference"></section>
+  </main>
+
+  <footer>
+    <p>Unofficial technical documentation. Source service: <a href="https://www.elections-professionnelles.travail.gouv.fr/">Élections professionnelles</a>. Public data is presented under the official service’s stated <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence/">Licence Ouverte 2.0</a>.</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-standalone-preset.js" crossorigin="anonymous"></script>
+  <script src="/swagger.js"></script>
+</body>
+</html>

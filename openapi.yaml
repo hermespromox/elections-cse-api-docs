@@ -1,0 +1,1169 @@
+openapi: 3.1.0
+info:
+  title: French CSE Election PV — Public Consultation API
+  version: 1.0.0
+  summary: Unofficial documentation of the public CSE election procès-verbal consultation backend.
+  description: |
+    Unofficial, reverse-engineered documentation for the public consultation routes used by
+    [Élections professionnelles](https://www.elections-professionnelles.travail.gouv.fr/election-cse/pv/recherche).
+
+    The API exposes establishment search, available procès-verbaux (PVs), and structured election
+    results. It does **not** expose a public bulk dump or candidate names.
+
+    ### Important operational rules
+
+    * Public consultation is quota-controlled. Respect `429 QUOTA_EXCEEDED`, `503 GLOBAL_QUOTA_EXCEEDED`,
+      `retryAfter`, and the CAPTCHA workflow.
+    * The public website reports a no-CAPTCHA allowance of 10 consultations. Limits can change.
+    * `countSearch` is part of the official frontend request. Send `true`; it must not be used to evade quota accounting.
+    * The upstream CORS policy allows the official website origin and rejects arbitrary origins. This hosted Swagger is
+      intentionally read-only. Run examples from a permitted client and in accordance with the service rules.
+    * Search results cover establishments with at least one election PV or total-carence PV in the published period.
+    * `nbInscrits` is the number of registered voters for the relevant ballot scope, not necessarily total company headcount.
+    * This specification is not published or endorsed by the French Ministry of Labour.
+  contact:
+    name: Official website
+    url: https://www.elections-professionnelles.travail.gouv.fr/
+  license:
+    name: Licence Ouverte / Open Licence 2.0
+    url: https://www.etalab.gouv.fr/licence-ouverte-open-licence/
+externalDocs:
+  description: Official CSE PV search
+  url: https://www.elections-professionnelles.travail.gouv.fr/election-cse/pv/recherche
+servers:
+  - url: https://backend.elections-professionnelles.travail.gouv.fr/api/v1
+    description: Production public backend
+security: []
+
+tags:
+  - name: Statistics
+    description: Dataset scope and public consultation counters.
+  - name: Establishments
+    description: Search and retrieve establishments that have consultable CSE records.
+  - name: Procès-verbaux
+    description: List and retrieve structured CSE election PV data.
+  - name: Observations
+    description: Public correction/observation support shown by the official frontend.
+  - name: Supporting content
+    description: Public website content and reference APIs used by the frontend.
+  - name: CAPTCHA
+    description: Public CAPTCHA lifecycle used when consultation thresholds require it.
+
+paths:
+  /portal/pv-search-stats:
+    get:
+      tags: [Statistics]
+      operationId: getPvSearchStats
+      summary: Get the number and publication period of consultable PVs
+      description: Returns the count displayed on the public search page and the configured publication period.
+      responses:
+        '200':
+          description: Current public PV statistics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PvSearchStats'
+              example:
+                totalProcesVerbaux: 481056
+                periodeDebut: '2021'
+                periodeFin: '2028'
+        '503':
+          $ref: '#/components/responses/GlobalQuotaExceeded'
+
+  /portal/consultations/captcha-requirement:
+    get:
+      tags: [Statistics]
+      operationId: getCaptchaRequirement
+      summary: Check whether CAPTCHA is currently required
+      description: |
+        Returns the current consultation count and no-CAPTCHA threshold for the caller context.
+        The official frontend checks this before allowing further public consultation.
+      responses:
+        '200':
+          description: CAPTCHA requirement state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptchaRequirement'
+              example:
+                captchaRequired: false
+                consultationsCount: 9
+                noCaptchaLimit: 10
+        '429':
+          $ref: '#/components/responses/QuotaExceeded'
+        '503':
+          $ref: '#/components/responses/GlobalQuotaExceeded'
+
+  /portal/establishments:
+    post:
+      tags: [Establishments]
+      operationId: searchEstablishments
+      summary: Search establishments by SIREN, SIRET, or company name
+      description: |
+        Searches establishments with at least one consultable election PV or total-carence PV.
+
+        Exactly one primary criterion is expected: `filters.sirenOrSiret` or `filters.raisonSociale`.
+        The official UI accepts 9-digit SIREN, 14-digit SIRET, or a company name of 3–25 characters.
+        Company names are normalized by removing diacritics, spaces, and punctuation, then uppercasing.
+        Example: `Renault S.A.S.` becomes `RENAULTSAS`.
+
+        `departementCode` is used as a secondary filter after an initial search. The official UI uses a page size of 10.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EstablishmentSearchRequest'
+            examples:
+              bySiren:
+                summary: Search by SIREN
+                value:
+                  page: 1
+                  limit: 10
+                  orderBy: SIRET
+                  orderDir: ASC
+                  filters:
+                    sirenOrSiret: '780129987'
+                    raisonSociale: null
+                    departementCode: null
+                  countSearch: true
+              bySiret:
+                summary: Search by SIRET
+                value:
+                  page: 1
+                  limit: 10
+                  orderBy: SIRET
+                  orderDir: ASC
+                  filters:
+                    sirenOrSiret: '78012998701033'
+                    raisonSociale: null
+                    departementCode: null
+                  countSearch: true
+              byCompanyName:
+                summary: Search by normalized company name
+                value:
+                  page: 1
+                  limit: 10
+                  orderBy: NAME
+                  orderDir: ASC
+                  filters:
+                    sirenOrSiret: null
+                    raisonSociale: RENAULTSAS
+                    departementCode: null
+                  countSearch: true
+      responses:
+        '200':
+          description: Paginated matching establishments.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstablishmentSearchResponse'
+        '400':
+          description: Invalid or mutually incompatible search fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '429':
+          $ref: '#/components/responses/QuotaExceeded'
+        '503':
+          $ref: '#/components/responses/GlobalQuotaExceeded'
+
+  /portal/establishments/departments:
+    get:
+      tags: [Establishments]
+      operationId: listDepartments
+      summary: List French departments available for establishment filtering
+      responses:
+        '200':
+          description: Department codes and labels.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Department'
+              example:
+                - code: '75'
+                  libelle: PARIS
+        '503':
+          $ref: '#/components/responses/GlobalQuotaExceeded'
+
+  /portal/establishments/{establishmentId}:
+    get:
+      tags: [Establishments]
+      operationId: getEstablishment
+      summary: Retrieve one establishment
+      parameters:
+        - $ref: '#/components/parameters/EstablishmentId'
+      responses:
+        '200':
+          description: Establishment identity and address.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Establishment'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/QuotaExceeded'
+        '503':
+          $ref: '#/components/responses/GlobalQuotaExceeded'
+
+  /portal/establishments/{establishmentId}/pvs:
+    get:
+      tags: [Procès-verbaux]
+      operationId: listEstablishmentPvs
+      summary: List consultable PVs for an establishment
+      description: |
+        Returns PV summary cards and available electoral-cycle start years. `cycles` may be repeated to request
+        one or more cycle start years.
+      parameters:
+        - $ref: '#/components/parameters/EstablishmentId'
+        - name: cycles
+          in: query
+          required: false
+          description: Electoral-cycle start year. Repeat the parameter to filter by multiple cycles.
+          schema:
+            type: array
+            items:
+              type: integer
+              minimum: 2021
+              maximum: 2028
+          style: form
+          explode: true
+          example: [2021]
+      responses:
+        '200':
+          description: PV summaries and available cycles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PvListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/QuotaExceeded'
+        '503':
+          $ref: '#/components/responses/GlobalQuotaExceeded'
+
+  /portal/establishments/{establishmentId}/pvs/{pvId}:
+    get:
+      tags: [Procès-verbaux]
+      operationId: getPvDetail
+      summary: Retrieve the full structured content of a PV
+      description: |
+        Returns establishment, college, ballot, union/list, candidate-result, and special-mention data.
+        Candidate names are not exposed. Candidate rows contain gender, list ballot count, votes obtained,
+        and elected status.
+      parameters:
+        - $ref: '#/components/parameters/EstablishmentId'
+        - $ref: '#/components/parameters/PvId'
+      responses:
+        '200':
+          description: Full structured PV.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PvDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/QuotaExceeded'
+        '503':
+          $ref: '#/components/responses/GlobalQuotaExceeded'
+
+  /portal/establishments/{establishmentId}/pvs/{pvId}/reference:
+    get:
+      tags: [Procès-verbaux]
+      operationId: getPvReference
+      summary: Retrieve the textual PV reference
+      description: |
+        Frontend-discovered route used by the observation dialog. It is intended to return plain text.
+        This route returned HTTP 500 for one live test record and should be treated as unstable.
+      parameters:
+        - $ref: '#/components/parameters/EstablishmentId'
+        - $ref: '#/components/parameters/PvId'
+      responses:
+        '200':
+          description: Textual PV reference.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/QuotaExceeded'
+        '500':
+          $ref: '#/components/responses/TechnicalError'
+
+  /portal/observation-profils:
+    get:
+      tags: [Observations]
+      operationId: listObservationProfiles
+      summary: List profiles allowed to submit a PV observation
+      responses:
+        '200':
+          description: Human-readable observation profile labels.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+              example:
+                - Une entreprise
+                - Une organisation syndicale
+                - Un prestataire de vote électronique
+                - Une personne de l'inspection du travail
+                - Autre (précisez dans le message)
+        '503':
+          $ref: '#/components/responses/GlobalQuotaExceeded'
+
+  /portal/establishments/{establishmentId}/pvs/{pvId}/observations:
+    post:
+      tags: [Observations]
+      operationId: submitPvObservation
+      summary: Submit a correction or observation about a PV
+      description: Frontend-discovered public support route. Submit only legitimate corrections through the official workflow.
+      parameters:
+        - $ref: '#/components/parameters/EstablishmentId'
+        - $ref: '#/components/parameters/PvId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ObservationRequest'
+      responses:
+        '200':
+          description: Observation accepted.
+        '204':
+          description: Observation accepted with no response body.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/QuotaExceeded'
+        '503':
+          $ref: '#/components/responses/GlobalQuotaExceeded'
+
+  /portal/conventions-collectives/search:
+    post:
+      tags: [Supporting content]
+      operationId: searchCollectiveAgreements
+      summary: Search collective agreements
+      description: |
+        Public route used by the site's separate collective-agreement search feature. The exact request and response
+        contract was discovered in the frontend but was not included in the live CSE PV route verification; it is
+        documented generically to avoid inventing unsupported fields.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Collective-agreement search response.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /cms/rubriques/with-articles:
+    get:
+      tags: [Supporting content]
+      operationId: getCmsSectionsWithArticles
+      summary: Retrieve public CMS sections with their articles
+      responses:
+        '200':
+          description: Public CMS navigation/content hierarchy.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+
+  /cms/articles/{articleCode}:
+    get:
+      tags: [Supporting content]
+      operationId: getCmsArticleByCode
+      summary: Retrieve a public CMS article by code
+      parameters:
+        - name: articleCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: CMS article.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /cms/articles/by-identifiers:
+    get:
+      tags: [Supporting content]
+      operationId: getCmsArticleByIdentifiers
+      summary: Retrieve a CMS article by slug and route
+      parameters:
+        - name: slug
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: route
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Matching CMS article.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /files/download-file/{fileId}:
+    get:
+      tags: [Supporting content]
+      operationId: downloadCmsFile
+      summary: Download a public CMS attachment
+      description: This is a CMS attachment route, not a confirmed direct-download route for election PV documents.
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Attachment contents. MIME type varies by file.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                contentEncoding: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /external/captcha:
+    get:
+      tags: [CAPTCHA]
+      operationId: generateCaptcha
+      summary: Generate a CAPTCHA challenge
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: ignoreCeiling
+          in: query
+          required: false
+          description: Used by the official contact workflow; not intended to bypass consultation limits.
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: CAPTCHA challenge metadata and image data/reference.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptchaChallenge'
+        '429':
+          $ref: '#/components/responses/QuotaExceeded'
+
+  /external/sound/{captchaUuid}:
+    get:
+      tags: [CAPTCHA]
+      operationId: getCaptchaSound
+      summary: Download the audio rendering of a CAPTCHA
+      parameters:
+        - $ref: '#/components/parameters/CaptchaUuid'
+      responses:
+        '200':
+          description: CAPTCHA audio.
+          content:
+            audio/*:
+              schema:
+                type: string
+                contentEncoding: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /external/info/{captchaUuid}:
+    get:
+      tags: [CAPTCHA]
+      operationId: getCaptchaInfo
+      summary: Retrieve CAPTCHA challenge information
+      parameters:
+        - $ref: '#/components/parameters/CaptchaUuid'
+      responses:
+        '200':
+          description: CAPTCHA information.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /external/validation:
+    post:
+      tags: [CAPTCHA]
+      operationId: validateCaptcha
+      summary: Validate a CAPTCHA answer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaptchaValidationRequest'
+      responses:
+        '200':
+          description: CAPTCHA validation result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptchaValidationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/QuotaExceeded'
+
+components:
+  parameters:
+    EstablishmentId:
+      name: establishmentId
+      in: path
+      required: true
+      description: Internal establishment identifier returned by establishment search.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 25060499
+    PvId:
+      name: pvId
+      in: path
+      required: true
+      description: Internal PV identifier returned by the establishment PV list.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 25245808
+    CaptchaUuid:
+      name: captchaUuid
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TechnicalError:
+      description: Internal technical error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: '500'
+            message: Internal technical error, please try again later
+            timestamp: '2026-07-20T16:01:53.783Z'
+            path: /api/v1/portal/establishments/25060499/pvs/25245808/reference
+            validationErrors: []
+    QuotaExceeded:
+      description: Public consultation quota exceeded. Wait for `retryAfter` and follow the official CAPTCHA flow when requested.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/QuotaError'
+          example:
+            code: QUOTA_EXCEEDED
+            message: Consultation limit reached
+            limitType: D
+            retryAfter: '30'
+    GlobalQuotaExceeded:
+      description: Service-wide protective quota exceeded.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GlobalQuotaError'
+          example:
+            code: GLOBAL_QUOTA_EXCEEDED
+            message: Le service est temporairement indisponible.
+            retryAfter: '30'
+
+  schemas:
+    PvSearchStats:
+      type: object
+      additionalProperties: false
+      required: [totalProcesVerbaux, periodeDebut, periodeFin]
+      properties:
+        totalProcesVerbaux:
+          type: integer
+          minimum: 0
+          description: Number of currently consultable PVs displayed by the public site.
+        periodeDebut:
+          type: string
+          pattern: '^\d{4}$'
+        periodeFin:
+          type: string
+          pattern: '^\d{4}$'
+
+    CaptchaRequirement:
+      type: object
+      additionalProperties: false
+      required: [captchaRequired, consultationsCount, noCaptchaLimit]
+      properties:
+        captchaRequired:
+          type: boolean
+        consultationsCount:
+          type: integer
+          minimum: 0
+        noCaptchaLimit:
+          type: integer
+          minimum: 0
+
+    EstablishmentSearchRequest:
+      type: object
+      additionalProperties: false
+      required: [page, limit, orderBy, orderDir, filters, countSearch]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          default: 1
+        limit:
+          type: integer
+          minimum: 1
+          default: 10
+          description: Official UI uses 10. The backend may cap larger windows.
+        orderBy:
+          type: string
+          enum: [SIRET, NAME]
+          default: SIRET
+        orderDir:
+          type: string
+          enum: [ASC, DESC]
+          default: ASC
+        filters:
+          $ref: '#/components/schemas/EstablishmentSearchFilters'
+        countSearch:
+          type: boolean
+          const: true
+          description: Official quota-accounting flag. Send true and do not use it to circumvent consultation controls.
+
+    EstablishmentSearchFilters:
+      type: object
+      additionalProperties: false
+      required: [sirenOrSiret, raisonSociale, departementCode]
+      properties:
+        sirenOrSiret:
+          oneOf:
+            - type: string
+              pattern: '^(\d{9}|\d{14})$'
+            - type: 'null'
+          description: Valid 9-digit SIREN or 14-digit SIRET.
+        raisonSociale:
+          oneOf:
+            - type: string
+              minLength: 3
+              maxLength: 25
+              pattern: '^[0-9A-Z@]+$'
+            - type: 'null'
+          description: Normalized company name; accents, punctuation, and spaces removed, uppercase.
+        departementCode:
+          oneOf:
+            - type: string
+              pattern: '^(\d{2}|2A|2B|97\d|98\d)$'
+            - type: 'null'
+
+    EstablishmentSearchResponse:
+      type: object
+      additionalProperties: false
+      required: [items, page, limit, windowTotal, limited, limitedTo, availableDepartments]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Establishment'
+        page:
+          type: integer
+        limit:
+          type: integer
+        windowTotal:
+          type: integer
+          minimum: 0
+          description: Number of matching establishments in the accessible result window.
+        limited:
+          type: boolean
+          description: Whether the result set was capped by the backend.
+        limitedTo:
+          oneOf:
+            - type: integer
+            - type: 'null'
+        availableDepartments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Department'
+
+    Establishment:
+      type: object
+      additionalProperties: false
+      required: [id, siret, name, address, addressLine, inseeCode]
+      properties:
+        id:
+          type: integer
+          format: int64
+        siret:
+          type: string
+          pattern: '^\d{14}$'
+        name:
+          type: string
+        address:
+          type: string
+        addressLine:
+          $ref: '#/components/schemas/AddressLine'
+        inseeCode:
+          type: string
+          description: INSEE municipality code.
+
+    AddressLine:
+      type: object
+      additionalProperties: false
+      required: [lines]
+      properties:
+        lines:
+          type: array
+          items:
+            type: string
+
+    Department:
+      type: object
+      additionalProperties: false
+      required: [code, libelle]
+      properties:
+        code:
+          type: string
+        libelle:
+          type: string
+
+    PvListResponse:
+      type: object
+      additionalProperties: false
+      required: [items, cycles]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PvSummary'
+        cycles:
+          type: array
+          items:
+            type: integer
+            description: Electoral-cycle start year.
+
+    PvSummary:
+      type: object
+      additionalProperties: false
+      required: [id, establishmentId, college, tour, cycle, electionDate, transmitted, status]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: PV identifier to use as `{pvId}`.
+        establishmentId:
+          type: integer
+          format: int64
+          description: Field returned by the backend. In live data it may not equal the parent search establishment ID; retain the parent ID for route construction.
+        college:
+          type: string
+        tour:
+          type: string
+        cycle:
+          type: string
+          example: 2021–2024
+        electionDate:
+          type: string
+          description: Month/year label returned by the API.
+          example: 12/2022
+        transmitted:
+          type: boolean
+        status:
+          type: string
+        typeUrne:
+          oneOf:
+            - type: string
+            - type: 'null'
+
+    PvDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - pvId
+        - establishmentId
+        - cycle
+        - tour
+        - header
+        - establishment
+        - college
+        - scrutin
+        - resultsByOrganisation
+        - listesCommunes
+        - mentions
+      properties:
+        pvId:
+          type: integer
+          format: int64
+        establishmentId:
+          type: integer
+          format: int64
+        cycle:
+          type: string
+        tour:
+          type: string
+        header:
+          $ref: '#/components/schemas/PvHeader'
+        establishment:
+          $ref: '#/components/schemas/PvEstablishment'
+        college:
+          $ref: '#/components/schemas/PvCollege'
+        scrutin:
+          $ref: '#/components/schemas/PvBallot'
+        resultsByOrganisation:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganisationResult'
+        listesCommunes:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          description: Common-list data when applicable. Empty for the verified example.
+        mentions:
+          $ref: '#/components/schemas/PvMentions'
+
+    PvHeader:
+      type: object
+      additionalProperties: false
+      required: [collegeLabel]
+      properties:
+        collegeLabel:
+          type: string
+
+    PvEstablishment:
+      type: object
+      additionalProperties: false
+      required: [siret, siretsConcernes, raisonSociale, adresse, prevElectionSiret, prevScrutinDate, electionPartielle]
+      properties:
+        siret:
+          type: string
+        siretsConcernes:
+          type: array
+          items:
+            type: string
+        raisonSociale:
+          type: string
+        adresse:
+          type: string
+        prevElectionSiret:
+          type: string
+          description: Previous-election SIRET or a human-readable missing-value label.
+        prevScrutinDate:
+          type: string
+          description: Previous ballot date or a human-readable missing-value label.
+        electionPartielle:
+          type: string
+          description: Backend election-partial code/label.
+
+    PvCollege:
+      type: object
+      additionalProperties: false
+      required: [idccLibelle, denomination, categoriesProfessionnelles, dureeMandatElus]
+      properties:
+        idccLibelle:
+          type: string
+          description: Collective-agreement ID and label.
+        denomination:
+          type: string
+        categoriesProfessionnelles:
+          type: array
+          items:
+            type: string
+        autresComposition:
+          oneOf:
+            - type: string
+            - type: 'null'
+        dureeMandatElus:
+          type: string
+        corpsMetierSpecifique:
+          oneOf:
+            - type: string
+            - type: 'null'
+
+    PvBallot:
+      type: object
+      additionalProperties: false
+      required:
+        - dateOuverture
+        - dateFermeture
+        - nbInscrits
+        - nbVotants
+        - nbBlancsNuls
+        - nbSuffragesValables
+        - carence
+        - showQuorum
+        - showNbListes
+        - showNbSieges
+        - showQuotient
+      properties:
+        dateOuverture:
+          type: string
+        dateFermeture:
+          type: string
+        nbInscrits:
+          type: integer
+          minimum: 0
+          description: Registered voters in this ballot scope; not necessarily company headcount.
+        nbVotants:
+          type: integer
+          minimum: 0
+        nbBlancsNuls:
+          type: integer
+          minimum: 0
+        nbSuffragesValables:
+          type: integer
+          minimum: 0
+        carence:
+          type: string
+        showQuorum:
+          type: boolean
+        quorumAtteint:
+          oneOf:
+            - type: string
+            - type: 'null'
+        valeurQuorum:
+          oneOf:
+            - type: number
+            - type: 'null'
+        showNbListes:
+          type: boolean
+        nbListesPresentees:
+          oneOf:
+            - type: integer
+            - type: 'null'
+        showNbSieges:
+          type: boolean
+        nbSiegesPourvoir:
+          oneOf:
+            - type: integer
+            - type: 'null'
+        showQuotient:
+          type: boolean
+        quotientElectoral:
+          oneOf:
+            - type: number
+            - type: 'null'
+
+    OrganisationResult:
+      type: object
+      additionalProperties: false
+      required: [syndicatLib, confederationLib, candidates]
+      properties:
+        syndicatLib:
+          type: string
+        confederationLib:
+          type: string
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateResult'
+
+    CandidateResult:
+      type: object
+      additionalProperties: false
+      required: [genreHF, nbBulletinsListe, nbVoixObtenu]
+      properties:
+        genreHF:
+          type: string
+          description: Gender code exposed by the public API. Candidate name is not returned.
+        nbBulletinsListe:
+          type: integer
+          minimum: 0
+        nbVoixObtenu:
+          type: integer
+          minimum: 0
+        elu:
+          oneOf:
+            - type: string
+              description: Human-readable elected status such as `Élu` or `Élue`.
+            - type: 'null'
+
+    PvMentions:
+      type: object
+      additionalProperties: false
+      required: [carenceTotale, carenceCollege, quorumNonAtteint, siegesNonPourvus, libelleFinal]
+      properties:
+        carenceTotale:
+          type: boolean
+        carenceCollege:
+          type: boolean
+        quorumNonAtteint:
+          type: boolean
+        siegesNonPourvus:
+          type: boolean
+        libelleFinal:
+          type: string
+
+    ObservationRequest:
+      type: object
+      additionalProperties: false
+      required: [email, profil, message]
+      properties:
+        email:
+          type: string
+          format: email
+        telephone:
+          type: string
+        profil:
+          type: string
+          description: One value returned by `/portal/observation-profils`.
+        message:
+          type: string
+          minLength: 1
+
+    CaptchaChallenge:
+      type: object
+      required: [uuid]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+      additionalProperties: true
+
+    CaptchaValidationRequest:
+      type: object
+      additionalProperties: false
+      required: [uuid, code]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        code:
+          type: string
+          description: User-entered CAPTCHA code; official frontend uppercases it.
+        ignoreCeiling:
+          type: boolean
+          description: Contact-workflow flag; not intended to bypass consultation limits.
+
+    CaptchaValidationResponse:
+      type: object
+      required: [valid]
+      properties:
+        valid:
+          type: boolean
+      additionalProperties: true
+
+    ValidationErrorItem:
+      type: object
+      additionalProperties: true
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+        path:
+          type: string
+        validationErrors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationErrorItem'
+
+    ValidationErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            validationErrors:
+              type: array
+              items:
+                $ref: '#/components/schemas/ValidationErrorItem'
+
+    QuotaError:
+      type: object
+      additionalProperties: true
+      required: [code, message, limitType, retryAfter]
+      properties:
+        code:
+          type: string
+          const: QUOTA_EXCEEDED
+        message:
+          type: string
+        limitType:
+          type: string
+          enum: [C, E, D]
+          description: CAPTCHA, establishment-search, or PV-detail quota.
+        retryAfter:
+          type: string
+          description: Number of seconds before retrying.
+
+    GlobalQuotaError:
+      type: object
+      additionalProperties: true
+      required: [code, message, retryAfter]
+      properties:
+        code:
+          type: string
+          const: GLOBAL_QUOTA_EXCEEDED
+        message:
+          type: string
+        retryAfter:
+          type: string

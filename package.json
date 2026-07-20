@@ -1,0 +1,10 @@
+{
+  "name": "elections-cse-api-docs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Unofficial OpenAPI documentation for the French CSE election PV public consultation API",
+  "scripts": {
+    "validate": "npx --yes @redocly/cli@1.25.11 lint openapi.yaml --extends=minimal",
+    "serve": "python3 -m http.server 4173"
+  }
+}
