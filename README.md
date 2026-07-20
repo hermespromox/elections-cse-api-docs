@@ -8,7 +8,7 @@ Unofficial OpenAPI 3.1 documentation for the public consultation backend used by
 - `index.html` — hosted Swagger UI and overview
 - `styles.css` — custom responsive presentation
 - `swagger.js` — executable Swagger UI configuration
-- `api/proxy/[...path].js` — restricted same-origin testing proxy
+- `api/proxy.js` — restricted same-origin testing proxy
 
 ## Validate
 

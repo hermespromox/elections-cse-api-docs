@@ -62,9 +62,16 @@ test('OpenAPI sends executable requests through the same-origin proxy', async ()
   assert.match(openapi, /servers:\s*\n\s*- url: \/api\/proxy/);
 });
 
+test('Vercel rewrites nested proxy paths to the serverless function', async () => {
+  const config = JSON.parse(await source('vercel.json'));
+  assert.deepEqual(config.rewrites, [
+    { source: '/api/proxy/:path*', destination: '/api/proxy?path=:path*' },
+  ]);
+});
+
 test('proxy preserves repeated electoral cycles when listing PVs', async () => {
   const calls = [];
-  const { createHandler } = require('../api/proxy/[...path].js');
+  const { createHandler } = require('../api/proxy.js');
   const handler = createHandler({
     fetchImpl: async (url, options) => {
       calls.push({ url, options });
@@ -90,7 +97,7 @@ test('proxy preserves repeated electoral cycles when listing PVs', async () => {
 
 test('proxy permits establishment search and forwards JSON only', async () => {
   const calls = [];
-  const { createHandler } = require('../api/proxy/[...path].js');
+  const { createHandler } = require('../api/proxy.js');
   const handler = createHandler({
     fetchImpl: async (url, options) => {
       calls.push({ url, options });
@@ -116,7 +123,7 @@ test('proxy permits establishment search and forwards JSON only', async () => {
 });
 
 test('proxy rejects mutation routes that Swagger must not execute', async () => {
-  const { createHandler } = require('../api/proxy/[...path].js');
+  const { createHandler } = require('../api/proxy.js');
   let called = false;
   const handler = createHandler({ fetchImpl: async () => { called = true; } });
   const req = {
@@ -135,7 +142,7 @@ test('proxy rejects mutation routes that Swagger must not execute', async () => 
 });
 
 test('proxy propagates upstream quota status and retry information', async () => {
-  const { createHandler } = require('../api/proxy/[...path].js');
+  const { createHandler } = require('../api/proxy.js');
   const handler = createHandler({
     fetchImpl: async () => upstreamResponse({
       status: 429,
