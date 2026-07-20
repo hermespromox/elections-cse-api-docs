@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: French CSE Election PV — Public Consultation API
-  version: 1.0.0
+  version: 1.1.0
   summary: Unofficial documentation of the public CSE election procès-verbal consultation backend.
   description: |
     Unofficial, reverse-engineered documentation for the public consultation routes used by
@@ -16,8 +16,9 @@ info:
       `retryAfter`, and the CAPTCHA workflow.
     * The public website reports a no-CAPTCHA allowance of 10 consultations. Limits can change.
     * `countSearch` is part of the official frontend request. Send `true`; it must not be used to evade quota accounting.
-    * The upstream CORS policy allows the official website origin and rejects arbitrary origins. This hosted Swagger is
-      intentionally read-only. Run examples from a permitted client and in accordance with the service rules.
+    * The upstream CORS policy rejects arbitrary browser origins. This hosted Swagger uses a restricted same-origin proxy
+      for safe public GET operations and establishment search. The proxy forwards quota and CAPTCHA errors unchanged.
+    * Observation submission, CAPTCHA validation, and unverified POST operations are deliberately disabled in the proxy.
     * Search results cover establishments with at least one election PV or total-carence PV in the published period.
     * `nbInscrits` is the number of registered voters for the relevant ballot scope, not necessarily total company headcount.
     * This specification is not published or endorsed by the French Ministry of Labour.
@@ -31,8 +32,8 @@ externalDocs:
   description: Official CSE PV search
   url: https://www.elections-professionnelles.travail.gouv.fr/election-cse/pv/recherche
 servers:
-  - url: https://backend.elections-professionnelles.travail.gouv.fr/api/v1
-    description: Production public backend
+  - url: /api/proxy
+    description: Restricted same-origin testing proxy for this hosted Swagger
 security: []
 
 tags:

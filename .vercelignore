@@ -1,0 +1,4 @@
+tests/
+.vercel/
+node_modules/
+*.log

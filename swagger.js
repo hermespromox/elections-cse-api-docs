@@ -12,7 +12,7 @@ window.addEventListener('DOMContentLoaded', () => {
     persistAuthorization: false,
     showExtensions: true,
     showCommonExtensions: true,
-    supportedSubmitMethods: [],
+    supportedSubmitMethods: ['get', 'post'],
     syntaxHighlight: { activate: true, theme: 'agate' },
     presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
     layout: 'BaseLayout'

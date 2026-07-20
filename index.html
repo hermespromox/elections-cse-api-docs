@@ -34,7 +34,7 @@
 
   <main id="top">
     <section class="hero">
-      <div class="hero__eyebrow">Unofficial · reverse-engineered · read-only</div>
+      <div class="hero__eyebrow">Unofficial · reverse-engineered · test-enabled</div>
       <h1>French CSE election PV<br /><span>public backend reference</span></h1>
       <p class="hero__lede">A detailed OpenAPI 3.1 specification for searching establishments and reading structured CSE election procès-verbal data.</p>
       <div class="hero__actions">
@@ -53,7 +53,7 @@
       <div class="notice__icon" aria-hidden="true">!</div>
       <div>
         <h2 id="important-title">Important before using the API</h2>
-        <p>The upstream backend only permits browser CORS calls from the official government website. Interactive “Try it out” execution is disabled here. Public consultation is quota- and CAPTCHA-controlled; respect <code>429</code>, <code>503</code>, and <code>retryAfter</code>. This documentation is not affiliated with or endorsed by the French Ministry of Labour.</p>
+        <p>Interactive “Try it out” requests use a restricted same-origin proxy because the upstream backend rejects arbitrary browser origins. Safe public reads and establishment searches are enabled; mutation routes remain blocked. Public consultation is quota- and CAPTCHA-controlled, so respect <code>429</code>, <code>503</code>, and <code>retryAfter</code>. This documentation is not affiliated with or endorsed by the French Ministry of Labour.</p>
       </div>
     </section>
 
